@@ -1,0 +1,9 @@
+# Generated executables and build artifacts
+*.exe
+*.dll
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
+bench/build/

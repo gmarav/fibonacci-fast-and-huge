@@ -1,0 +1,63 @@
+# Host C++/CUDA-source CI: compiler warnings, MSVC /analyze, and the CPU
+# reference tests.  No CUDA device is required; nvcc analysis is run locally
+# (or on a self-hosted runner) via scripts/lint.ps1 without -SkipCuda.
+#
+# Local equivalent:
+#   .\scripts\lint.ps1 -SkipRust -SkipCuda
+#   .\scripts\host-tests.ps1
+
+name: cpp
+
+on:
+  push:
+    paths:
+      - 'cuda-ntt/**'
+      - 'scripts/lint.ps1'
+      - 'scripts/host-tests.ps1'
+      - '.github/workflows/cpp.yml'
+      - 'build.ps1'
+  pull_request:
+    paths:
+      - 'cuda-ntt/**'
+      - 'scripts/lint.ps1'
+      - 'scripts/host-tests.ps1'
+      - '.github/workflows/cpp.yml'
+      - 'build.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-cpp:
+    runs-on: windows-latest
+    env:
+      MSYSTEM: MINGW64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MSYS2 toolchain
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+
+      - name: Configure MSYS2 paths
+        shell: pwsh
+        run: |
+          $msys2 = '${{ steps.msys2.outputs.msys2-location }}'
+          "$msys2\usr\bin" >> $env:GITHUB_PATH
+          "$msys2\mingw64\bin" >> $env:GITHUB_PATH
+
+      - name: Lint host C++ (g++ and MSVC /analyze)
+        shell: pwsh
+        run: .\scripts\lint.ps1 -SkipRust -SkipCuda
+
+      - name: Run CPU reference tests
+        shell: pwsh
+        run: .\scripts\host-tests.ps1

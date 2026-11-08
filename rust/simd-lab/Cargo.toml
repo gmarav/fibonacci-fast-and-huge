@@ -1,0 +1,25 @@
+[package]
+name = "fib-simd-lab"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Fibonacci: fast and huge - exact CPU SIMD and CUDA benchmarks"
+license = "MIT"
+authors = ["Alexander Gmar"]
+publish = false
+
+[dependencies]
+# The original num-bigint and GMP CPU implementations live in the parent crate.
+# Keeping the path dependency (instead of a copy) guarantees that all CLI
+# families use the same algorithm source and the same rayon version.
+fib-rust = { path = "..", features = ["gmp"] }
+num-bigint = "0.5"
+rayon = "1.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Must match fib-rust's optional dependency: integer support only.
+rug = { version = "1.30", default-features = false, features = ["integer", "std"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

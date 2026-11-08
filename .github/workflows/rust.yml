@@ -1,0 +1,85 @@
+# Windows CPU CI for the Rust SIMD/GMP lab.
+#
+# Runs formatting, clippy, and tests with the MinGW-w64 toolchain used by the
+# release build. gmp-mpfr-sys compiles GMP from source, so its build directory
+# is cached between runs.
+#
+# Local equivalent:
+#   .\build.ps1 -SkipCuda -Check
+
+name: rust
+
+on:
+  push:
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust.yml'
+  pull_request:
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-cpu:
+    runs-on: windows-latest
+    env:
+      MSYSTEM: MINGW64
+      RUSTUP_TOOLCHAIN: 1.99.1-x86_64-pc-windows-gnu
+      GMP_MPFR_SYS_CACHE: ${{ github.workspace }}\build\gmp-cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MSYS2 toolchain
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            make
+            diffutils
+            m4
+
+      # Each GITHUB_PATH line is prepended, so the last line ends up first in PATH.
+      - name: Configure MSYS2 paths
+        shell: pwsh
+        run: |
+          $msys2 = '${{ steps.msys2.outputs.msys2-location }}'
+          "$msys2\usr\bin" >> $env:GITHUB_PATH
+          "$msys2\mingw64\bin" >> $env:GITHUB_PATH
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1-x86_64-pc-windows-gnu
+          components: rustfmt, clippy
+
+      - name: Cache GMP build
+        uses: actions/cache@v4
+        with:
+          path: build/gmp-cache
+          key: gmp-mpfr-sys-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock', 'rust/simd-lab/Cargo.lock') }}
+          restore-keys: |
+            gmp-mpfr-sys-${{ runner.os }}-
+
+      - name: Check formatting
+        run: |
+          cargo fmt --manifest-path rust/simd-lab/Cargo.toml -- --check
+          cargo fmt --manifest-path rust/Cargo.toml -- --check
+
+      - name: Run clippy
+        run: |
+          cargo clippy --release --all-targets --manifest-path rust/simd-lab/Cargo.toml --locked -- -D warnings
+          cargo clippy --release --all-targets --manifest-path rust/Cargo.toml --locked -- -D warnings
+
+      - name: Run tests
+        run: |
+          cargo test --release --manifest-path rust/simd-lab/Cargo.toml --locked
+          cargo test --release --manifest-path rust/Cargo.toml --locked
